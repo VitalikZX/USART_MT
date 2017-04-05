@@ -1,14 +1,16 @@
 #include "stm32f4xx.h"
 #include "stm32f4xx_rcc.h"
+#include "stm32f4xx_tim.h"
 #include "stm32f4xx_gpio.h"
 #include "stm32f4xx_usart.h"
 
 GPIO_InitTypeDef gpio_b;        			//объявляем переменную для инициализации порта
 USART_InitTypeDef usart;       				//объявляем переменную для инициализации USARTa
+TIM_TimeBaseInitTypeDef timer_5;			//таймер для отсчёта по приёму
 
 const uint32_t usartSpeed 	 = 115200;
 const uint8_t bytesToSent 	 = 66;
-const uint8_t bytesToReceive = 3;
+const uint8_t bytesToReceive = 32;
 
 uint8_t sendData[bytesToSent];  			//буфер содержащий информацию для передачи
 uint8_t receivedData[bytesToReceive];	//буфер для чтения данных
@@ -22,7 +24,8 @@ void initAll(){
 	
 		RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
 		RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-		
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5,ENABLE);
+	
 		GPIO_StructInit(&gpio_b);					//настраиваем portB 6, 7 ножки
 		
 		gpio_b.GPIO_Mode = GPIO_Mode_AF;
@@ -54,6 +57,18 @@ void initAll(){
 		
 		NVIC_EnableIRQ(USART1_IRQn);
 		USART_Cmd(USART1, ENABLE);
+		
+		
+		TIM_TimeBaseStructInit(&timer_5);	//настраиваем 12 таймер
+    timer_5.TIM_Prescaler = 24000 - 1; //делитель 24000
+    timer_5.TIM_Period = 1000; 				//период 1000 импульсов
+		timer_5.TIM_ClockDivision = TIM_CKD_DIV1;
+		timer_5.TIM_CounterMode = TIM_CounterMode_Up;
+    TIM_TimeBaseInit(TIM5, &timer_5);	//hазрешаем прерывание по переполнению
+		
+    TIM_ITConfig(TIM5, TIM_IT_Update, ENABLE);
+    //TIM_Cmd(TIM5, ENABLE);  //включаем таймер
+    NVIC_EnableIRQ(TIM5_IRQn);
 }
 
 void initSendData(){
@@ -79,7 +94,8 @@ void zeroReceivedData(){
 }
 
 void sendDataRS(){
-	for(sendDataCounter=0; sendDataCounter<bytesToSent; sendDataCounter++){
+	for(sendDataCounter = 0; sendDataCounter < bytesToSent; sendDataCounter++){
 		USART_SendData(USART1, sendData[sendDataCounter]); 	// передача данных по USART
 	}
+	sendDataCounter = 0;
 }
